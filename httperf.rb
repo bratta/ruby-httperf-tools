@@ -83,12 +83,11 @@ class HttperfRunner
   end
   
   def run_httperf
-    puts @options.to_s
     @options.uri_list.each do |uri|
       authentication = get_authentication_string()
       cmd =  "#{@options.httperf} --client=0/1 --server=#{@options.server} --port=#{@options.port} --uri=#{uri} "
       cmd << "--rate=#{@options.rate} --send-buffer=#{@options.send_buffer} --recv-buffer=#{@options.recv_buffer} "
-      cmd << "--add-header=\"Host:#{@options.host}\\n#{authentication}\""
+      cmd << "--add-header=\"Host:#{@options.host}\\n#{authentication}\" "
       cmd << "--num-conns=#{@options.connections} --hog | grep \"Request rate\""
       puts `#{cmd}`
       #puts cmd
