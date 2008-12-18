@@ -164,7 +164,7 @@ class HttperfRunner
   def get_authentication_string
     authentication = ''
     if (@options.username && @options.password)
-      encoded = Base64.encode64("#{@options.username}:#{@options.password}")
+      encoded = Base64.encode64("#{@options.username}:#{@options.password}").chomp
       authentication = "Authorization: Basic #{encoded}\\n"
     end
     authentication
