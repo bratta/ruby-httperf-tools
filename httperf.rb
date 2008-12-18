@@ -90,8 +90,8 @@ class HttperfRunner
       cmd << "--rate=#{@options.rate} --send-buffer=#{@options.send_buffer} --recv-buffer=#{@options.recv_buffer} "
       cmd << "--add-header=\"Host:#{@options.host}\\n#{authentication}\""
       cmd << "--num-conns=#{@options.connections} --hog | grep \"Request rate\""
-      #puts `#{cmd}`
-      puts cmd
+      puts `#{cmd}`
+      #puts cmd
     end
   end
 
