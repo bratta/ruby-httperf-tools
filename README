@@ -1,0 +1,4 @@
+This contains a simple set of scripts (ok, so far just httperf.rb) to make 
+it easy to work with HP's httperf utility for hitting URL's.
+
+Have fun and hack away!
