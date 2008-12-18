@@ -10,7 +10,7 @@
 # where [options] is one of the following:
 #   -v  --version  Show the version of the script
 #   -h  --help     Show this screen
-#   -c  --config   The yaml config file [default: httperf.yml]
+#   -c  --config   The yaml config file
 #
 # == Examples
 # Run the tests using a shared config:
@@ -29,6 +29,11 @@ require 'rubygems'
 require 'optparse' 
 require 'rdoc/usage'
 require 'ostruct'
+require 'yaml'
+require 'base64'
+
+VALID_OPTIONS = ['server', 'rate', 'port', 'connections', 'send_buffer', 'recv_buffer', 
+                 'uri_list', 'httperf', 'host', 'username', 'password']
 
 class OpenStruct
   def add_new(name, value)
@@ -69,8 +74,7 @@ class HttperfRunner
   def load_yaml_options
     if @options.config
       @options.yaml = YAML::load(File.open(File.expand_path(@options.config)))
-      valid_opts = ['server', 'rate', 'port', 'connections', 'send_buffer', 'recv_buffer', 'uri_list', 'httperf']
-      valid_opts.each do |opt|
+      VALID_OPTIONS.each do |opt|
         if @options.yaml[opt]
           @options.add_new(opt, @options.yaml[opt])
         end
@@ -81,8 +85,10 @@ class HttperfRunner
   def run_httperf
     puts @options.to_s
     @options.uri_list.each do |uri|
+      authentication = get_authentication_string()
       cmd =  "#{@options.httperf} --client=0/1 --server=#{@options.server} --port=#{@options.port} --uri=#{uri} "
       cmd << "--rate=#{@options.rate} --send-buffer=#{@options.send_buffer} --recv-buffer=#{@options.recv_buffer} "
+      cmd << "--add-header=\"Host:#{@options.host}\\n#{authentication}\""
       cmd << "--num-conns=#{@options.connections} --hog | grep \"Request rate\""
       #puts `#{cmd}`
       puts cmd
@@ -143,6 +149,7 @@ class HttperfRunner
   def set_defaults    
     @options.config      = nil                    # By default, don't use a config
     @options.server      = 'localhost'            # Run on the local machine
+    @options.host        = 'localhost'            # Host: header to use
     @options.rate        = 50                     # httperf rate
     @options.port        = 80                     # By default, use http
     @options.connections = 200                    # Use 200 connections to the URL
@@ -150,6 +157,17 @@ class HttperfRunner
     @options.recv_buffer = 16384                  # Receive buffer
     @options.uri_list    = ['/']                  # By default, only hit the homepage
     @options.httperf     = `which httperf`.chomp  # Path to httperf (required, obviously!)
+    @options.username    = nil                    # Basic auth - username
+    @options.password    = nil                    # Basic auth - password
+  end
+  
+  def get_authentication_string
+    authentication = ''
+    if (@options.username && @options.password)
+      encoded = Base64.encode64("#{@options.username}:#{@options.password}")
+      authentication = "Authorization: Basic #{encoded}\\n"
+    end
+    authentication
   end
 end
 
