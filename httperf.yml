@@ -1,7 +1,12 @@
 ---
 server: 127.0.0.1
-port: 80
-connections: 10
+port: 8000
+connections: 5000
+low_rate: 50
+high_rate: 1000
+rate_step: 50
+wait_time: 120
+num_call: 1
 uri_list:
   - /
   - /about
