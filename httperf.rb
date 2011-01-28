@@ -65,24 +65,35 @@ class HttperfRunner
       # Check to make sure we have a valid httperf
       check_for_httperf
 
-      results = {}
-      report = Table(:column_names => ['rate', 'conn/s', 'req/s',
-                     'replies/s avg', 'errors', '5xx status', 'net io (KB/s)'])
-
       if not @options.low_rate or not @options.high_rate
         @options.low_rate = @options.high_rate = @options.rate
       end
 
-      if @options.low_rate and @options.high_rate
+      reports = {}
+      @options.uri_list.each do |uri|
+        results = {}
+        reports[uri] = Table(:column_names => ['rate', 'conn/s', 'req/s',
+            'replies/s avg', 'errors', '5xx status', 'net io (KB/s)'])
         (@options.low_rate..@options.high_rate).step(@options.rate_step) do |rate|
-          results[rate] = run_httperf rate
-          report << results[rate].merge({'rate' => rate})
+          results[rate] = run_httperf(uri, rate)
+          reports[uri] << results[rate].merge({'rate' => rate})
 
-          puts report.to_s
+          puts reports[uri].to_s
           puts results[rate]['output'] if (results[rate]['errors'].to_i > 0 or
               results[rate]['5xx status'].to_i > 0)
+
+          puts "Sleeping #{@options.wait_time}s before running again..." if @options.wait_time
+          sleep @options.wait_time if (@options.wait_time and
+                                       rate != @options.high_rate)
         end
-      else
+        sleep @options.wait_time if (@options.wait_time and
+                                     uri != @options.uri_list.last)
+      end
+
+      puts "\nFinal Results:"
+      reports.each do |uri, report|
+        puts "Results for URI '#{uri}'"
+        puts report.to_s
       end
     else
       output_usage
@@ -100,39 +111,37 @@ class HttperfRunner
     end
   end
 
-  def run_httperf rate=nil
-    @options.uri_list.each do |uri|
-      authentication = get_authentication_string()
-      cmd =  "#{@options.httperf} --client=0/1 --server=#{@options.server} "
-      cmd << "--port=#{@options.port} --uri=\"#{uri}\" "
-      cmd << "--rate=#{rate or @options.rate} "
-      cmd << "--send-buffer=#{@options.send_buffer} "
-      cmd << "--recv-buffer=#{@options.recv_buffer} "
-      cmd << "--add-header=\"Host:#{@options.host}\\n#{authentication}\" "
-      cmd << "--num-conns=#{@options.connections} "
-      cmd << "--num-call=#{@options.num_call} "
-      cmd << "--hog" if @options.hog
+  def run_httperf uri, rate=nil
+    authentication = get_authentication_string()
+    cmd =  "#{@options.httperf} --client=0/1 --server=#{@options.server} "
+    cmd << "--port=#{@options.port} --uri=\"#{uri}\" "
+    cmd << "--rate=#{rate or @options.rate} "
+    cmd << "--send-buffer=#{@options.send_buffer} "
+    cmd << "--recv-buffer=#{@options.recv_buffer} "
+    cmd << "--add-header=\"Host:#{@options.host}\\n#{authentication}\" "
+    cmd << "--num-conns=#{@options.connections} "
+    cmd << "--num-call=#{@options.num_call} "
+    cmd << "--hog" if @options.hog
 
-      res = Hash.new("")
-      IO.popen("#{cmd} 2>&1") do |pipe|
-        puts "\n#{cmd}"
-        while((line = pipe.gets))
-          res['output'] += line
+    res = Hash.new("")
+    IO.popen("#{cmd} 2>&1") do |pipe|
+      puts "\n#{cmd}"
+      while((line = pipe.gets))
+        res['output'] += line
 
-          case line
-          when /^Total: .*replies (\d+)/ then res['replies'] = $1
-          when /^Connection rate: (\d+\.\d)/ then res['conn/s'] = $1
-          when /^Request rate: (\d+\.\d)/ then res['req/s'] = $1
-          when /^Reply time .* response (\d+\.\d)/ then res['reply time'] = $1
-          when /^Net I\/O: (\d+\.\d)/ then res['net io (KB/s)'] = $1
-          when /^Errors: total (\d+)/ then res['errors'] = $1
-          when /^Reply rate .*min (\d+\.\d) avg (\d+\.\d) max (\d+\.\d) stddev (\d+\.\d)/ then
-            res['replies/s min'] = $1
-            res['replies/s avg'] = $2
-            res['replies/s max'] = $3
-            res['replies/s stddev'] = $4
-          when /^Reply status: 1xx=\d+ 2xx=\d+ 3xx=\d+ 4xx=\d+ 5xx=(\d+)/ then res['5xx status'] = $1
-          end
+        case line
+        when /^Total: .*replies (\d+)/ then res['replies'] = $1
+        when /^Connection rate: (\d+\.\d)/ then res['conn/s'] = $1
+        when /^Request rate: (\d+\.\d)/ then res['req/s'] = $1
+        when /^Reply time .* response (\d+\.\d)/ then res['reply time'] = $1
+        when /^Net I\/O: (\d+\.\d)/ then res['net io (KB/s)'] = $1
+        when /^Errors: total (\d+)/ then res['errors'] = $1
+        when /^Reply rate .*min (\d+\.\d) avg (\d+\.\d) max (\d+\.\d) stddev (\d+\.\d)/ then
+          res['replies/s min'] = $1
+          res['replies/s avg'] = $2
+          res['replies/s max'] = $3
+          res['replies/s stddev'] = $4
+        when /^Reply status: 1xx=\d+ 2xx=\d+ 3xx=\d+ 4xx=\d+ 5xx=(\d+)/ then res['5xx status'] = $1
         end
       end
       return res
