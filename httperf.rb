@@ -34,7 +34,8 @@ require 'ruport'
 
 VALID_OPTIONS = ['server', 'rate', 'low_rate', 'high_rate', 'rate_step',
   'wait_time', 'port', 'connections', 'send_buffer', 'recv_buffer', 'uri_list',
-  'httperf', 'host', 'username', 'password', 'num_call', 'hog']
+  'httperf', 'host', 'username', 'password', 'num_call', 'hog',
+  'target_time']
 
 class OpenStruct
   def add_new(name, value)
@@ -113,13 +114,21 @@ class HttperfRunner
 
   def run_httperf uri, rate=nil
     authentication = get_authentication_string()
+
+    rate ||= @options.rate
+    if @options.target_time
+      connections = rate * @options.target_time
+    else
+      connections = @options.connections
+    end
+
     cmd =  "#{@options.httperf} --client=0/1 --server=#{@options.server} "
     cmd << "--port=#{@options.port} --uri=\"#{uri}\" "
     cmd << "--rate=#{rate or @options.rate} "
     cmd << "--send-buffer=#{@options.send_buffer} "
     cmd << "--recv-buffer=#{@options.recv_buffer} "
     cmd << "--add-header=\"Host:#{@options.host}\\n#{authentication}\" "
-    cmd << "--num-conns=#{@options.connections} "
+    cmd << "--num-conns=#{connections} "
     cmd << "--num-call=#{@options.num_call} "
     cmd << "--hog" if @options.hog
 
@@ -211,6 +220,7 @@ class HttperfRunner
     @options.wait_time   = 120                    # Time to wait between httperf runs
     @options.port        = 80                     # By default, use http
     @options.connections = 200                    # Use 200 connections to the URL
+    @options.target_time = nil
     @options.num_call = 10
     @options.send_buffer = 4096                   # Send buffer
     @options.recv_buffer = 16384                  # Receive buffer
