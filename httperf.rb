@@ -78,6 +78,7 @@ class HttperfRunner
             'replies/s avg', 'errors', '5xx status', 'net io (KB/s)'])
         (@options.low_rate..@options.high_rate).step(@options.rate_step) do |rate|
           results[rate] = run_httperf(uri, rate)
+          break unless results[rate]
           reports[uri] << results[rate].merge({'rate' => rate})
 
           puts reports[uri].to_s
@@ -166,8 +167,7 @@ class HttperfRunner
         end
       end
     rescue Timeout::Error
-        puts "\n#{command} completed at #{Time.now.tv_sec}"
-        return cmd_output
+        puts "\n#{cmd} timed out at after #{timeout}s"
     end
   end
 
