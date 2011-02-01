@@ -31,6 +31,7 @@ require 'ostruct'
 require 'yaml'
 require 'base64'
 require 'ruport'
+require 'timeout'
 
 VALID_OPTIONS = ['server', 'rate', 'low_rate', 'high_rate', 'rate_step',
   'wait_time', 'port', 'connections', 'send_buffer', 'recv_buffer', 'uri_list',
@@ -133,27 +134,40 @@ class HttperfRunner
     cmd << "--hog" if @options.hog
 
     res = Hash.new("")
-    IO.popen("#{cmd} 2>&1") do |pipe|
-      puts "\n#{cmd}"
-      while((line = pipe.gets))
-        res['output'] += line
+    if @options.target_time
+      timeout = @options.target_time * 2
+    else
+      timeout = (@options.connections / rate) * 2
+    end
 
-        case line
-        when /^Total: .*replies (\d+)/ then res['replies'] = $1
-        when /^Connection rate: (\d+\.\d)/ then res['conn/s'] = $1
-        when /^Request rate: (\d+\.\d)/ then res['req/s'] = $1
-        when /^Reply time .* response (\d+\.\d)/ then res['reply time'] = $1
-        when /^Net I\/O: (\d+\.\d)/ then res['net io (KB/s)'] = $1
-        when /^Errors: total (\d+)/ then res['errors'] = $1
-        when /^Reply rate .*min (\d+\.\d) avg (\d+\.\d) max (\d+\.\d) stddev (\d+\.\d)/ then
-          res['replies/s min'] = $1
-          res['replies/s avg'] = $2
-          res['replies/s max'] = $3
-          res['replies/s stddev'] = $4
-        when /^Reply status: 1xx=\d+ 2xx=\d+ 3xx=\d+ 4xx=\d+ 5xx=(\d+)/ then res['5xx status'] = $1
+    begin
+      status = Timeout.timeout(timeout) do
+        IO.popen("#{cmd} 2>&1") do |pipe|
+          puts "\n#{cmd}"
+          while((line = pipe.gets))
+            res['output'] += line
+
+            case line
+            when /^Total: .*replies (\d+)/ then res['replies'] = $1
+            when /^Connection rate: (\d+\.\d)/ then res['conn/s'] = $1
+            when /^Request rate: (\d+\.\d)/ then res['req/s'] = $1
+            when /^Reply time .* response (\d+\.\d)/ then res['reply time'] = $1
+            when /^Net I\/O: (\d+\.\d)/ then res['net io (KB/s)'] = $1
+            when /^Errors: total (\d+)/ then res['errors'] = $1
+            when /^Reply rate .*min (\d+\.\d) avg (\d+\.\d) max (\d+\.\d) stddev (\d+\.\d)/ then
+              res['replies/s min'] = $1
+              res['replies/s avg'] = $2
+              res['replies/s max'] = $3
+              res['replies/s stddev'] = $4
+            when /^Reply status: 1xx=\d+ 2xx=\d+ 3xx=\d+ 4xx=\d+ 5xx=(\d+)/ then res['5xx status'] = $1
+            end
+          end
+          return res
         end
       end
-      return res
+    rescue Timeout::Error
+        puts "\n#{command} completed at #{Time.now.tv_sec}"
+        return cmd_output
     end
   end
 
